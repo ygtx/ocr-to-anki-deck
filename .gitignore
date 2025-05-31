@@ -48,7 +48,9 @@ htmlcov/
 .ipynb_checkpoints/
 
 # Project specific
-photos*/
+data/input/images/*
+data/input/youtube/*
+data/output/decks/*
 *.apkg
 *.log
 *.db
