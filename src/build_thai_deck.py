@@ -12,15 +12,16 @@ python build_thai_deck.py --image IMG_4637.jpeg --deck-name "Name"
 import os, re, csv, uuid, argparse, tempfile, pathlib, requests, shutil, time
 from typing import List, Tuple, Optional
 from PIL import Image, UnidentifiedImageError, ImageOps
-import pytesseract
-from pythainlp.transliterate import transliterate, romanize
+from pythainlp.transliterate import romanize
 from genanki import Model, Note, Deck, Package
 from gtts import gTTS
-from google.cloud import vision
 import eng_to_ipa as ipa
 import base64
 import openai
+from dotenv import load_dotenv
 
+# .envファイルを読み込む
+load_dotenv()
 
 # ---------- OCR & PARSE -------------------------------------------------
 

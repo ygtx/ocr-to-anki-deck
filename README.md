@@ -30,3 +30,12 @@ pip install -r requirements.txt
 - コードフォーマット: Black
 - リント: Flake8
 - テスト: pytest 
+
+
+### How to use
+
+# ① フォルダを丸ごと処理（音声生成）
+python build_thai_deck.py --input-dir ./photos --deck-name "Name" --generate-media
+
+# ② 単一画像だけ（音声なし）
+python build_thai_deck.py --image IMG_4637.jpeg --deck-name "Name"
