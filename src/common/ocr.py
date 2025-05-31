@@ -98,4 +98,73 @@ def ocr_and_process(img_path: pathlib.Path, media_dir: pathlib.Path) -> List[Tup
     except Exception as e:
         print(f"❌ OpenAI APIでの処理に失敗しました: {img_path}")
         print(f"エラー: {str(e)}")
+        return []
+
+def ocr_and_process_youtube_frame(img_path: pathlib.Path, media_dir: pathlib.Path) -> List[Tuple[str, str, str]]:
+    """YouTubeフレーム用のプロンプトでOCR処理"""
+    from dotenv import load_dotenv
+    load_dotenv()
+    import os
+    import base64
+    import openai
+    import re
+    import json
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("❌ OPENAI_API_KEYが設定されていません")
+        print("⚠️ .envファイルにOPENAI_API_KEYを設定してください")
+        return []
+    client = openai.OpenAI(api_key=api_key)
+    with open(img_path, "rb") as image_file:
+        b64_image = base64.b64encode(image_file.read()).decode("utf-8")
+    prompt = (
+        "この画像は語学学習表の画像です。画面に表示されている「タイ語」「Paiboon式ローマ字」「意味」を抽出し、"
+        "JSON形式で出力してください。その3要素が揃っていない画像は無視してださい。例: [{\"thai\": \"...\", \"paiboon\": \"...\", \"meaning\": \"...\"}, ...]"
+    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"}}
+                    ]
+                }
+            ],
+            max_completion_tokens=2048
+        )
+        content = response.choices[0].message.content
+        print(content)  # デバッグ用
+        json_match = re.search(r'```json\n(.*?)\n```', content, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            json_match = re.search(r'\[[\s\S]*\]', content)
+            if not json_match:
+                print("❌ OpenAI応答にJSONが見つかりませんでした")
+                return []
+            json_str = json_match.group(0)
+        try:
+            table = json.loads(json_str)
+            results = []
+            seen_paiboon = set()
+            for row in table:
+                meaning = row.get("meaning", "")
+                thai = row.get("thai", "")
+                paiboon = row.get("paiboon", "")
+                if not paiboon or paiboon in seen_paiboon:
+                    continue
+                seen_paiboon.add(paiboon)
+                results.append((meaning, thai, paiboon))
+                print(f"✅ 処理成功: {meaning} | {thai} | {paiboon}")
+            return results
+        except json.JSONDecodeError as e:
+            print(f"❌ JSONの解析に失敗しました: {str(e)}")
+            return []
+    except Exception as e:
+        print(f"❌ OpenAI APIでの処理に失敗しました: {img_path}")
+        print(f"エラー: {str(e)}")
         return [] 

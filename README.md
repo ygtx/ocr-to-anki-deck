@@ -8,6 +8,7 @@
 - Paiboon式ローマ字の自動生成
 - 音声ファイルの自動生成（オプション）
 - Ankiデッキの自動生成
+- YouTube動画からのフレーズ抽出（重複フレームはSSIMで自動排除）
 
 ## インストール
 
@@ -20,6 +21,8 @@ cd anki_ocr
 2. 依存パッケージをインストール:
 ```bash
 pip install -e .
+# YouTube重複排除に必要な追加パッケージ
+pip install scikit-image
 ```
 
 3. 環境変数の設定:
@@ -46,6 +49,20 @@ anki-ocr --image data/input/images/example.jpg --deck-name "Thai Vocab"
 anki-ocr --input-dir data/input/images --deck-name "Thai Vocab" --generate-media
 ```
 
+### YouTube動画からデッキを生成
+
+```bash
+anki-ocr --youtube "https://www.youtube.com/watch?v=..." --deck-name "Thai Vocab"
+
+# フレーム抽出間隔や重複排除のしきい値を調整したい場合
+anki-ocr --youtube "https://www.youtube.com/watch?v=..." --deck-name "Thai Vocab" --frame-interval 3 --ssim-threshold 0.92
+```
+
+- `--frame-interval` : フレーム抽出間隔（秒、デフォルト5）
+- `--ssim-threshold` : SSIMによる重複排除のしきい値（0.90〜0.99推奨、デフォルト0.95）
+  - 値を下げると「より違いのある画像だけ残す」
+  - 値を上げると「より厳密に重複を排除」
+
 ### 出力
 
 - 生成されたAnkiデッキ（`.apkg`ファイル）は `data/output/decks/` ディレクトリに保存されます。
@@ -71,6 +88,7 @@ python src/confirm_apkg.py data/output/decks/Thai_Vocab.apkg
 - 画像サイズが大きすぎる場合は自動的にリサイズされます
 - 音声生成にはインターネット接続が必要です
 - OpenAI APIの利用にはAPIキーが必要です（.envファイルに設定）
+- YouTube動画の重複排除には `scikit-image` パッケージが必要です
 
 ## 開発
 
@@ -86,9 +104,9 @@ anki_ocr/
 │   │   └── utils.py     # ユーティリティ
 │   ├── deck_builders/   # デッキ生成
 │   │   └── image_table.py
-│   ├── cli/             # コマンドライン
-│   │   └── main.py
-│   └── confirm_apkg.py  # デッキ確認ツール
+│   │   └── youtube.py   # YouTube対応
+│   └── cli/             # コマンドライン
+│       └── main.py
 ├── data/
 │   ├── input/          # 入力ファイル
 │   │   └── images/
@@ -106,6 +124,10 @@ anki_ocr/
 - openai: OCR処理
 - numpy: 画像処理
 - python-dotenv: 環境変数管理
+- yt-dlp: YouTube動画ダウンロード
+- moviepy: 動画処理
+- opencv-python: 画像処理
+- scikit-image: SSIMによる重複排除
 
 ## ライセンス
 

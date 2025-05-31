@@ -8,28 +8,50 @@ def extract_and_show_apkg(apkg_path):
     temp_dir = pathlib.Path("/tmp/anki_inspect")
     temp_dir.mkdir(exist_ok=True)
     
-    with zipfile.ZipFile(apkg_path) as z:
+    with zipfile.ZipFile(apkg_path, "r") as z:
         # アーカイブ内のファイル一覧を表示
         print("\n📋 アーカイブ内のファイル:")
-        for info in z.infolist():
-            print(f"  - {info.filename} ({info.file_size:,} bytes)")
+        for name in z.namelist():
+            print(f"  - {name} ({z.getinfo(name).file_size:,} bytes)")
         
         # メディアファイルを抽出
         media_dir = temp_dir / "media"
         media_dir.mkdir(exist_ok=True)
         
-        # media.jsonを抽出して解析
-        if "media" in z.namelist():
-            media_json = json.loads(z.read("media").decode('utf-8'))
-            print("\n🎵 メディアファイル一覧:")
-            for filename, hash_value in media_json.items():
-                print(f"  - {filename} (hash: {hash_value})")
-                # メディアファイルを抽出
+        # mediaファイル名の候補
+        media_filenames = ["media", "media.json"]
+        media_file_found = None
+        for fname in media_filenames:
+            if fname in z.namelist():
+                media_file_found = fname
+                break
+        if media_file_found is not None:
+            # mediaファイルのサイズチェック
+            media_info = z.getinfo(media_file_found)
+            if media_info.file_size == 0:
+                print(f"\n🎵 メディアファイル情報なし: {media_file_found} (空ファイル)")
+            else:
                 try:
-                    z.extract(hash_value, media_dir)
-                    print(f"    ✅ 抽出成功: {media_dir / hash_value}")
-                except KeyError:
-                    print(f"    ❌ ファイルが見つかりません: {hash_value}")
+                    try:
+                        with z.open(media_file_found) as f:
+                            media_json = json.load(f)
+                    except UnicodeDecodeError:
+                        with z.open(media_file_found) as f:
+                            media_json = json.loads(f.read().decode("latin1"))
+                    print("\n🎵 メディアファイル一覧:")
+                    for filename, hash_value in media_json.items():
+                        print(f"  - {filename} (hash: {hash_value})")
+                        # メディアファイルを抽出
+                        try:
+                            z.extract(hash_value, media_dir)
+                            print(f"    ✅ 抽出成功: {media_dir / hash_value}")
+                        except KeyError:
+                            print(f"    ❌ ファイルが見つかりません: {hash_value}")
+                except Exception as e:
+                    print(f"\n❌ mediaファイル({media_file_found})の読み込みに失敗しました")
+                    print(f"エラー: {e}")
+        else:
+            print("\n🎵 メディアファイル情報なし (media, media.json が見つかりません)")
         
         # collection.anki2を抽出して解析
         z.extract("collection.anki2", temp_dir)

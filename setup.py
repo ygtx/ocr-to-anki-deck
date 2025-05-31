@@ -11,6 +11,9 @@ setup(
         "openai",
         "numpy",
         "python-dotenv",
+        "yt-dlp",     # YouTube動画ダウンロード
+        "moviepy",    # 動画処理
+        "opencv-python",  # 画像処理
     ],
     entry_points={
         "console_scripts": [
