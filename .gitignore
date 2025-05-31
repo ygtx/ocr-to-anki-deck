@@ -50,7 +50,7 @@ htmlcov/
 # Project specific
 data/input/images/*
 data/input/youtube/*
-data/output/decks/*
+data/output/*
 *.apkg
 *.log
 *.db
