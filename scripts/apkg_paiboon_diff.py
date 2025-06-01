@@ -55,12 +55,39 @@ def compare_vocab(gold, pred):
         total += 1
     return match, total, diffs
 
-def write_diffs_tsv(diffs, out_path):
+def merge_and_write_diffs_tsv(new_diffs, out_path):
+    # 既存データを読み込み（積み上げ式）
+    existing = []
+    if out_path.exists():
+        with open(out_path, encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            for row in reader:
+                existing.append(row)
+    # 新しいデータを追加（積み上げ）
+    for row in new_diffs:
+        existing.append({
+            'thai': row[0],
+            'gold_paiboon': row[1],
+            'generated_paiboon': row[2] if row[2] is not None else '',
+            'type': row[3]
+        })
+    # generated_paiboonが重複する例外定義を削除（新しいものを優先）
+    seen = {}
+    for row in reversed(existing):
+        key = row['generated_paiboon']
+        if key and key not in seen:
+            seen[key] = row
+    # generated_paiboonが空のものも残す
+    for row in reversed(existing):
+        key = row['generated_paiboon']
+        if not key:
+            seen[(row['thai'], row['gold_paiboon'])] = row
+    # 出力
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, 'w', encoding='utf-8', newline='') as f:
-        writer = csv.writer(f, delimiter='\t')
-        writer.writerow(['thai', 'gold_paiboon', 'generated_paiboon', 'type'])
-        for row in diffs:
+        writer = csv.DictWriter(f, fieldnames=['thai', 'gold_paiboon', 'generated_paiboon', 'type'], delimiter='\t')
+        writer.writeheader()
+        for row in reversed(list(seen.values())):
             writer.writerow(row)
 
 def main():
@@ -83,14 +110,13 @@ def main():
         shutil.rmtree(tmp_dir)
         sys.exit(1)
     out_path = Path('data/output/system/paiboon_diff.tsv')
-    write_diffs_tsv(diffs, out_path)
+    merge_and_write_diffs_tsv(diffs, out_path)
     print(f'✅ Paiboon match rate: {match}/{total} ({match/total*100:.1f}%)')
     print(f'❗ Diff results written to: {out_path.resolve()}')
     if diffs:
         print(f'❌ {len(diffs)} differences found (see TSV file above)')
     else:
         print('All matched!')
-    # 一時ファイル・ディレクトリ削除
     shutil.rmtree(tmp_dir)
 
 if __name__ == '__main__':

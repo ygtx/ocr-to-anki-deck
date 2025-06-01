@@ -16,6 +16,10 @@ from skimage.metrics import structural_similarity as ssim
 from deep_translator import MyMemoryTranslator
 from pathlib import Path
 from .base import BaseDeckBuilder
+import csv
+import base64
+import json
+import re
 
 def download_video(url: str, output_dir: pathlib.Path) -> pathlib.Path:
     """YouTube動画をダウンロードする"""
@@ -188,8 +192,8 @@ def process_youtube_video(url: str, deck_name: str, generate_media: bool = False
         print(f"\n🧹 一時ファイルを削除しました: {temp_dir}")
 
 class YouTubeDeckBuilder(BaseDeckBuilder):
-    def __init__(self, output_dir: str, deck_name: str, ssim_threshold: float = 0.95):
-        super().__init__(output_dir, deck_name)
+    def __init__(self, output_dir: str, deck_name: str, ssim_threshold: float = 0.95, use_paiboon_correction: bool = True):
+        super().__init__(output_dir, deck_name, use_paiboon_correction=use_paiboon_correction)
         self.ssim_threshold = ssim_threshold
 
     def _extract_frames(self, video_path: Path, interval: int = 1) -> List[Path]:
@@ -238,22 +242,24 @@ class YouTubeDeckBuilder(BaseDeckBuilder):
         # 画像を読み込み
         with open(frame_path, "rb") as f:
             image_data = f.read()
-        
+        b64_image = base64.b64encode(image_data).decode("utf-8")
+        # OCRプロンプトを動的生成
+        prompt = build_ocr_prompt()
         # OpenAI Vision APIでOCR
         response = self.client.chat.completions.create(
-            model="gpt-4-vision-preview",
+            model="gpt-4.1-mini",
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {
                             "type": "text",
-                            "text": "この画像からタイ語、Paiboon式ローマ字、日本語の意味を抽出してください。JSON形式で返してください。"
+                            "text": prompt
                         },
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/jpeg;base64,{image_data.hex()}"
+                                "url": f"data:image/jpeg;base64,{b64_image}"
                             }
                         }
                     ]
@@ -261,10 +267,23 @@ class YouTubeDeckBuilder(BaseDeckBuilder):
             ],
             max_tokens=300
         )
-        
         # レスポンスをパース
         result = response.choices[0].message.content
-        return eval(result)  # JSON文字列をDictに変換
+        # コードブロックを除去し、JSONとしてパース
+        json_match = re.search(r'```json\n(.*?)\n```', result, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            json_match = re.search(r'\[[\s\S]*\]', result)
+            if not json_match:
+                print("❌ OpenAI応答にJSONが見つかりませんでした")
+                return {}
+            json_str = json_match.group(0)
+        try:
+            return json.loads(json_str)
+        except Exception as e:
+            print(f"❌ JSONの解析に失敗しました: {str(e)}")
+            return {}
 
     def build(self, video_path: Path, frame_interval: int = 1) -> Path:
         """動画からデッキをビルド"""
@@ -286,4 +305,25 @@ class YouTubeDeckBuilder(BaseDeckBuilder):
 
     def cleanup(self):
         """一時ファイルを削除"""
-        super().cleanup() 
+        super().cleanup()
+
+def build_ocr_prompt():
+    diff_path = "data/output/system/paiboon_diff.tsv"
+    mis_list = []
+    if Path(diff_path).exists():
+        with open(diff_path, encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter="\t")
+            for row in reader:
+                if row["type"] == "mismatch":
+                    mis_list.append(f"- タイ語: {row['thai']}, 正しいPaiboon: {row['gold_paiboon']}, 誤判定: {row['generated_paiboon']}")
+    mis_text = "\n".join(mis_list)
+    prompt = (
+        "この画像からタイ語、Paiboon式ローマ字、日本語の意味を抽出してください。JSON形式で返してください。\n"
+        "\n【重要な注意事項】\n"
+        "過去のOCR処理では、Paiboon式ローマ字の抽出において下記のような誤判定が繰り返し発生しています。"
+        "これらの誤りを繰り返さないよう、タイ語の発音・綴りに忠実なPaiboon式ローマ字を正確に抽出してください。"
+        "特に、Paiboon式ローマ字以外の記号や曖昧な推測による文字を割り当てることは避けてください。"
+        "\n---\n誤判定例:\n" + mis_text + "\n---\n"
+        "上記の誤りを参考に、同じ間違いを繰り返さず、正しいPaiboon式ローマ字を出力してください。"
+    )
+    return prompt 

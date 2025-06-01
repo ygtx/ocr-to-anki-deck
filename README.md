@@ -175,3 +175,28 @@ MIT License
 ---
 
 この仕組みにより、Paiboon式ローマ字の自動変換精度を高いレベルで維持・改善できます。
+
+
+## Anki Card Template example
+
+### Front
+```html
+<h1>{{Phonetic}}</h1>
+<h2>{{Thai}}</h2>
+<hr>
+<h1>{{Audio}}</h1>
+```
+
+### Back
+```html
+<h1>{{Phonetic}}</h1>
+<h2>{{English}}</h2>
+<h2>{{Thai}}</h2>
+<hr>
+<h1>{{Audio}}</h1>
+```
+
+### Styling
+```csv
+h1, h2 { text-align: center }
+```

@@ -10,11 +10,12 @@ from genanki import Model, Note, Deck, Package
 import csv
 
 class BaseDeckBuilder:
-    def __init__(self, output_dir: str, deck_name: str):
+    def __init__(self, output_dir: str, deck_name: str, use_paiboon_correction: bool = True):
         self.output_dir = Path(output_dir)
         self.deck_name = deck_name
         self.client = OpenAI()
         self.temp_dir = Path(tempfile.mkdtemp())
+        self.use_paiboon_correction = use_paiboon_correction
         
     def build_rules(self) -> str:
         """Paiboon修正プロンプトを動的に生成（例外パターンはTSVから自動挿入）"""
@@ -198,21 +199,20 @@ class BaseDeckBuilder:
     def build(self, data: List[Dict[str, str]]) -> Path:
         """デッキをビルド"""
         # OCRデータを修正
-        corrected_data = self._correct_paiboon(data)
-        
+        if self.use_paiboon_correction:
+            corrected_data = self._correct_paiboon(data)
+        else:
+            corrected_data = data
         # 翻訳とTTS生成
         notes = []
         media_files = []
-        
         for item in corrected_data:
             # 英語に翻訳
             english = self._translate_to_english(item["meaning"])
-            
             # TTS音声を生成
             tts_path = self.temp_dir / f"{item['thai']}.mp3"
             self._generate_tts(item["thai"], tts_path)
             media_files.append(tts_path)
-            
             # ノートを作成
             notes.append({
                 "thai": item["thai"],
@@ -220,7 +220,6 @@ class BaseDeckBuilder:
                 "meaning": english,
                 "audio": f"[sound:{tts_path.name}]"
             })
-        
         # Ankiパッケージを作成
         return self._create_anki_package(notes, media_files)
 

@@ -17,7 +17,8 @@ def cli():
 @click.option("--deck-name", "-n", help="デッキ名（デフォルト: 動画タイトル）")
 @click.option("--frame-interval", "-i", default=1, help="フレーム抽出間隔（秒）")
 @click.option("--ssim-threshold", "-s", default=0.95, help="SSIMしきい値（0-1）")
-def youtube(url: str, output_dir: str, deck_name: str, frame_interval: int, ssim_threshold: float):
+@click.option("--no-paiboon-correction", is_flag=True, help="Paiboon最終修正（ChatGPT一括投げ）を行わない")
+def youtube(url: str, output_dir: str, deck_name: str, frame_interval: int, ssim_threshold: float, no_paiboon_correction: bool):
     """YouTube動画からAnkiデッキを生成"""
     try:
         # 出力ディレクトリを作成
@@ -35,7 +36,8 @@ def youtube(url: str, output_dir: str, deck_name: str, frame_interval: int, ssim
         builder = YouTubeDeckBuilder(
             output_dir=str(output_path),
             deck_name=deck_name,
-            ssim_threshold=ssim_threshold
+            ssim_threshold=ssim_threshold,
+            use_paiboon_correction=not no_paiboon_correction
         )
         
         # デッキをビルド
@@ -66,6 +68,7 @@ def main():
     # YouTube専用オプション
     parser.add_argument("--frame-interval", type=int, default=5, help="フレーム抽出間隔（秒）")
     parser.add_argument("--ssim-threshold", type=float, default=0.95, help="SSIMによる重複排除のしきい値（0.90〜0.99推奨、デフォルト0.95）")
+    parser.add_argument("--no-paiboon-correction", action="store_true", help="Paiboon最終修正（ChatGPT一括投げ）を行わない")
     
     args = parser.parse_args()
     
@@ -79,13 +82,17 @@ def main():
     
     # 処理の実行
     if args.youtube:
-        process_youtube_video(
-            args.youtube,
-            args.deck_name,
-            args.generate_media,
-            args.frame_interval,
-            args.ssim_threshold
+        # 明示的にYouTubeDeckBuilderを使う
+        builder = YouTubeDeckBuilder(
+            output_dir=str(output_dir),
+            deck_name=args.deck_name,
+            ssim_threshold=args.ssim_threshold,
+            use_paiboon_correction=not args.no_paiboon_correction
         )
+        video_path = download_video(args.youtube, output_dir)
+        apkg_path = builder.build(video_path, args.frame_interval)
+        print(f"\n✅ 生成完了: {apkg_path}")
+        builder.cleanup()
     else:
         process_image_table(
             args.input_dir or args.image.parent,
