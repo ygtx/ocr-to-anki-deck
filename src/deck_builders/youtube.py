@@ -25,14 +25,18 @@ def download_video(url: str, output_dir: pathlib.Path) -> pathlib.Path:
     """YouTube動画をダウンロードする"""
     print(f"\n📥 動画のダウンロード開始: {url}")
     
+    # 出力ディレクトリをdata/input/youtube/に変更
+    youtube_dir = pathlib.Path("data/input/youtube")
+    youtube_dir.mkdir(parents=True, exist_ok=True)
+    
     ydl_opts = {
         'format': 'best[height<=720]',  # 720p以下に制限
-        'outtmpl': str(output_dir / '%(id)s.%(ext)s'),
+        'outtmpl': str(youtube_dir / '%(id)s.%(ext)s'),
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
-        video_path = output_dir / f"{info['id']}.{info['ext']}"
+        video_path = youtube_dir / f"{info['id']}.{info['ext']}"
         print(f"✅ ダウンロード完了: {video_path}")
         return video_path
 
@@ -280,7 +284,20 @@ class YouTubeDeckBuilder(BaseDeckBuilder):
                 return {}
             json_str = json_match.group(0)
         try:
-            return json.loads(json_str)
+            data = json.loads(json_str)
+            # バリデーション
+            if not isinstance(data, list):
+                print("❌ JSONが配列ではありません")
+                return {}
+            if not data:
+                print("❌ 空の配列が返されました")
+                return {}
+            # 最初の要素を返す（複数ある場合は最初の1つだけ）
+            item = data[0]
+            if not all(k in item for k in ["meaning", "thai", "paiboon"]):
+                print("❌ 必要なキーが不足しています")
+                return {}
+            return item
         except Exception as e:
             print(f"❌ JSONの解析に失敗しました: {str(e)}")
             return {}
@@ -318,9 +335,18 @@ def build_ocr_prompt():
                     mis_list.append(f"- タイ語: {row['thai']}, 正しいPaiboon: {row['gold_paiboon']}, 誤判定: {row['generated_paiboon']}")
     mis_text = "\n".join(mis_list)
     prompt = (
-        "この画像からタイ語、Paiboon式ローマ字、日本語の意味を抽出してください。JSON形式で返してください。\n"
+        "この画像からタイ語、Paiboon式ローマ字、日本語の意味を抽出してください。\n"
+        "必ず以下の形式のJSON配列で返してください（説明文は不要）:\n"
+        "[\n"
+        "  {\n"
+        '    "meaning": "日本語の意味",\n'
+        '    "thai": "タイ語",\n'
+        '    "paiboon": "Paiboon式ローマ字"\n'
+        "  }\n"
+        "]\n"
         "\n【重要な注意事項】\n"
-        "過去のOCR処理では、Paiboon式ローマ字の抽出において下記のような誤判定が繰り返し発生しています。"
+        "1. 必ず上記の形式のJSON配列のみを返してください。説明文は不要です。\n"
+        "2. 過去のOCR処理では、Paiboon式ローマ字の抽出において下記のような誤判定が繰り返し発生しています。"
         "これらの誤りを繰り返さないよう、タイ語の発音・綴りに忠実なPaiboon式ローマ字を正確に抽出してください。"
         "特に、Paiboon式ローマ字以外の記号や曖昧な推測による文字を割り当てることは避けてください。"
         "\n---\n誤判定例:\n" + mis_text + "\n---\n"
