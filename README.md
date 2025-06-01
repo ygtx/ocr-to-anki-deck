@@ -132,3 +132,46 @@ anki_ocr/
 ## ライセンス
 
 MIT License
+
+## Paiboon表記の自動フィードバックループ
+
+本プロジェクトでは、Paiboon式ローマ字表記の精度を継続的に高めるため、**差分検出からプロンプト改善までの自動フィードバックループ**を実装しています。
+
+### 仕組みの概要
+
+1. **apkgファイルの比較と差分検出**
+    - 正解データ（例: 人手修正済みapkg）とシステム生成データ（自動生成apkg）を用意します。
+    - `python scripts/apkg_paiboon_diff.py correct.apkg generated.apkg` を実行すると、
+        - それぞれのapkgからCSVを一時生成
+        - タイ語ごとにPaiboon表記を比較し、差分（不一致や未出力）を `data/output/system/paiboon_diff.tsv` に出力します。
+
+2. **差分TSVの内容**
+    - `paiboon_diff.tsv` には以下のカラムが含まれます：
+        - `thai`（タイ語）
+        - `gold_paiboon`（正解Paiboon）
+        - `generated_paiboon`（システム出力）
+        - `type`（mismatch など）
+    - ここで `gold_paiboon` が「正解」として今後のプロンプトに反映されます。
+
+3. **プロンプト（rules）の自動改善**
+    - `src/deck_builders/base.py` の `BaseDeckBuilder` では、
+        - `build_rules()` メソッドが `paiboon_diff.tsv` を参照し、差分（例外パターン）をプロンプトに自動で組み込みます。
+        - 例外パターンがTSVに無い場合は自動で追記されます。
+        - TSVが存在しない場合は従来の例外パターンが使われます。
+    - これにより、**過去の差分が次回以降のPaiboon修正プロンプトに自動反映**され、システムの精度が継続的に向上します。
+
+### 運用フロー
+
+1. 正解apkgと生成apkgを用意。例えば、本システムをデフォルトの状態で実行して生成したものを「生成apkg」、それをAnkiに取り込んで手動生成を加えたものを「正解apkg」とするなど。
+2. `python scripts/apkg_paiboon_diff.py correct.apkg generated.apkg` を実行
+3. 差分が `data/output/system/paiboon_diff.tsv` に出力される
+4. 次回以降のデッキ生成時、差分がプロンプトに自動反映される
+
+### メリット
+- 人手で例外パターンを管理する必要がなく、**差分検出→プロンプト改善→精度向上**が自動で回る
+- 新たな誤りが出ても、差分TSVに追加するだけで次回以降に反映
+- 継続的なPaiboon表記の品質向上が可能
+
+---
+
+この仕組みにより、Paiboon式ローマ字の自動変換精度を高いレベルで維持・改善できます。
