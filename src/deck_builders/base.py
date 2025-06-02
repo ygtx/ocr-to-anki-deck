@@ -8,6 +8,7 @@ from gtts import gTTS
 from deep_translator import MyMemoryTranslator
 from genanki import Model, Note, Deck, Package
 import csv
+import re
 
 class BaseDeckBuilder:
     def __init__(self, output_dir: str, deck_name: str, use_paiboon_correction: bool = True):
@@ -70,58 +71,40 @@ class BaseDeckBuilder:
             exception_text = "   - 例外パターンなし"
         # ルール本体
         rules = f"""
-あなたはタイ語の専門家です。以下のルールに従ってPaiboon式ローマ字を修正してください：
+あなたはタイ文字のPaiboon式ローマ字表記のエキスパートです。以下のルールに従って、Paiboon表記の誤りを修正してください。
 
-1. 基本ルール
-   - 声調記号は母音の上に1回のみ配置（例：khòòp → khòp）
-   - 長母音は1回のみ表記（例：khòòp → khòp）
-   - 子音の連結は音節境界で行う（例：yàŋŋay → yàŋŋay）
-   - 母音記号はPaiboon標準に従う（例：ʉ̂ʉ よりも chûʉ, ûʉ, ue 系を優先）
+【修正手順】
+1. まず、例外リストに完全一致する "thai" フィールドがある場合は、"paiboon" を例外リストに書かれている正解に必ず置き換えてください（微妙な一致ではなく、完全一致ベース）。
+2. 例外に一致しない場合は、以下のルールに厳密に従って修正を行ってください（自由表現は一切禁止）。
 
-2. 実用Paiboon標準への補正ルール
-   - 語末の "b" は "p" に補正（例：khòb khun → khòp khun）
-   - "ă"（短母音）と "ǎ"（上昇声調）は厳密に区別する
-   - 否定副詞 "mây" は第3声（yの上に重アクセント）で表記（mây）
-   - "dâi"（can）と "dây"（できて）は文脈で正しく使い分ける
-   - "ʉ̂ʉ" は "ûʉ" または "ue" 系に正規化（例：chûʉ aray）
+【Paiboon 修正ルール】
+- 声調記号は母音の上に1回のみ配置（例：khòòp → khòp）
+- 長母音の重複は禁止（例：khòòp → khòp）
+- 母音・子音記号はPaiboon標準を用いる（例：ʉ̂ʉ → chûʉ または ue）
+- 短母音（ă）と声調母音（ǎ）は明確に区別
+- "mây" は常に第3声（yの上に重アクセント）
+- 文脈に応じて "dâi"（can）と "dây"（できた）を使い分ける（意味の曖昧な場合は "dây" を優先）
+- 最終子音が "b" の場合は "p" に変換（例：khòb khun → khòp khun）
+- 音節の再構成は禁止（例：yàŋŋay → yanjay はNG）
 
-3. 例外パターン
+【例外リスト（完全一致適用）】
 {exception_text}
 
-4. 音節解析ルール
-   - 子音連結（例：ŋŋ）は音節境界で行う
-   - 母音の長さは音節構造に基づいて決定
-   - 声調記号は音節の主要母音に配置
-   - 音節構造は元の語の構造を維持（例：yàŋŋay を yanjay に変更しない）
-
-5. 修正の優先順位
-   1. 例外パターンの適用
-   2. 実用Paiboon標準への補正
-   3. 音節解析に基づく修正
-   4. 基本ルールの適用
-
-6. 禁止事項
-   - 声調記号の重複（例：khòòp）
-   - 非標準的な母音記号（例：ᵾ）
-   - 音節構造の過度な簡略化（例：yàŋŋay → yanjay）
-   - 語末の "b"（例：khòb khun）
-   - "ă" と "ǎ" の混同
-   - "ʉ̂ʉ" のまま残す（chûʉ, ûʉ, ue 系に正規化）
-
-入力データは以下の形式です：
+【入力形式】
 {{
-    "thai": "タイ語の文字列",
-    "paiboon": "OCRで得られたPaiboon式ローマ字",
-    "meaning": "日本語の意味"
+  "thai": "タイ語の文字列",
+  "paiboon": "OCRで得られたPaiboon式ローマ字",
+  "meaning": "日本語の意味"
 }}
 
-出力は以下の形式で返してください：
+【出力形式】
 {{
-    "thai": "タイ語の文字列（変更なし）",
-    "paiboon": "修正後のPaiboon式ローマ字",
-    "meaning": "日本語の意味（変更なし）",
-    "correction_reason": "修正の理由（例外パターン適用の場合はその旨を明記）"
+  "thai": "（変更なし）",
+  "paiboon": "修正後のPaiboon表記（ルールまたは例外に従って修正）",
+  "meaning": "（変更なし）"
 }}
+
+⚠️ ルールに従っていない修正、創造的な出力、フォーマット逸脱は一切禁止です。
 """
         return rules
 
@@ -134,21 +117,67 @@ class BaseDeckBuilder:
 
     def _correct_paiboon(self, data: List[Dict[str, str]]) -> List[Dict[str, str]]:
         """タイ語をベースにしたPaiboon式ローマ字の修正"""
+        if not data:
+            print("⚠️ 修正対象のデータが空です")
+            return []
+            
+        corrected_data = []
         rules = self.build_rules()
-        data_json = json.dumps(data, ensure_ascii=False, indent=2)
-        response = self.client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": rules},
-                {"role": "user", "content": f"以下のデータのPaiboon式ローマ字を修正してください：\n{data_json}"}
-            ],
-            temperature=0.15
-        )
-        corrected_data = json.loads(response.choices[0].message.content)
-        for item in corrected_data:
-            if "correction_reason" in item:
-                print(f"\n🔍 修正理由: {item['correction_reason']}")
-                del item["correction_reason"]
+
+        for entry in data:
+            single_entry = {
+                "thai": entry["thai"],
+                "paiboon": entry["paiboon"],
+                "meaning": entry["meaning"]
+            }
+
+            try:
+                response = self.client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": rules},
+                        {"role": "user", "content": json.dumps(single_entry, ensure_ascii=False)}
+                    ],
+                    temperature=0,
+                    max_tokens=256,
+                )
+                content = response.choices[0].message.content.strip()
+
+                # コードブロックを除去
+                json_match = re.search(r'```json\n(.*?)\n```', content, re.DOTALL)
+                if json_match:
+                    content = json_match.group(1)
+                else:
+                    # オブジェクトのパターンを探す
+                    json_match = re.search(r'\{[\s\S]*\}', content)
+                    if json_match:
+                        content = json_match.group(0)
+
+                # JSONとして取り出す
+                result = json.loads(content)
+                if isinstance(result, dict):
+                    # 必要なキーが存在することを確認
+                    if all(k in result for k in ["thai", "paiboon", "meaning"]):
+                        if "correction_reason" in result:
+                            print(f"🔍 修正理由: {result['correction_reason']}")
+                            del result["correction_reason"]
+                        corrected_data.append(result)
+                    else:
+                        print("⚠️ 結果に必要なキーが不足しています。スキップ。")
+                        corrected_data.append(entry)
+                else:
+                    print("⚠️ 結果がdictではありませんでした。スキップ。")
+                    corrected_data.append(entry)
+
+            except Exception as e:
+                print(f"⚠️ エラーが発生: {str(e)}")
+                corrected_data.append(entry)
+
+        # 戻り値の型を確認
+        if not all(isinstance(item, dict) and all(k in item for k in ["thai", "paiboon", "meaning"]) for item in corrected_data):
+            print("⚠️ 戻り値の型が不正です。元のデータを返します。")
+            return data
+
         return corrected_data
 
     def _translate_to_english(self, text: str) -> str:
@@ -198,28 +227,52 @@ class BaseDeckBuilder:
 
     def build(self, data: List[Dict[str, str]]) -> Path:
         """デッキをビルド"""
+        # 空のデータやnull値をフィルタリング
+        valid_data = []
+        for item in data:
+            if (item.get("thai") and item.get("paiboon") and 
+                isinstance(item["thai"], str) and isinstance(item["paiboon"], str) and
+                item["thai"].strip() and item["paiboon"].strip()):
+                valid_data.append(item)
+            else:
+                print(f"⚠️ 無効なデータをスキップ: {item}")
+
+        if not valid_data:
+            print("❌ 有効なデータがありません")
+            return None
+
         # OCRデータを修正
         if self.use_paiboon_correction:
-            corrected_data = self._correct_paiboon(data)
+            corrected_data = self._correct_paiboon(valid_data)
         else:
-            corrected_data = data
+            corrected_data = valid_data
+
         # 翻訳とTTS生成
         notes = []
         media_files = []
         for item in corrected_data:
-            # 英語に翻訳
-            english = self._translate_to_english(item["meaning"])
-            # TTS音声を生成
-            tts_path = self.temp_dir / f"{item['thai']}.mp3"
-            self._generate_tts(item["thai"], tts_path)
-            media_files.append(tts_path)
-            # ノートを作成
-            notes.append({
-                "thai": item["thai"],
-                "paiboon": item["paiboon"],
-                "meaning": english,
-                "audio": f"[sound:{tts_path.name}]"
-            })
+            try:
+                # 英語に翻訳
+                english = self._translate_to_english(item["meaning"])
+                # TTS音声を生成
+                tts_path = self.temp_dir / f"{item['thai']}.mp3"
+                self._generate_tts(item["thai"], tts_path)
+                media_files.append(tts_path)
+                # ノートを作成
+                notes.append({
+                    "thai": item["thai"],
+                    "paiboon": item["paiboon"],
+                    "meaning": english,
+                    "audio": f"[sound:{tts_path.name}]"
+                })
+            except Exception as e:
+                print(f"⚠️ ノート生成中にエラーが発生: {str(e)}")
+                continue
+
+        if not notes:
+            print("❌ 有効なノートが生成できませんでした")
+            return None
+
         # Ankiパッケージを作成
         return self._create_anki_package(notes, media_files)
 

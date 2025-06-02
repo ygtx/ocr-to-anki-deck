@@ -317,6 +317,10 @@ class YouTubeDeckBuilder(BaseDeckBuilder):
             if result:  # 有効な結果の場合のみ追加
                 ocr_data.append(result)
         
+        if not ocr_data:
+            print("❌ OCRで有効なデータを抽出できませんでした")
+            return None
+            
         # 親クラスのbuildメソッドを呼び出し（修正機能を含む）
         return super().build(ocr_data)
 
