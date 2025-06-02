@@ -119,8 +119,6 @@ class BaseDeckBuilder:
 
     def paiboon_normalize(self, paiboon: str, entry: dict = None) -> str:
         import re
-        # Paiboon規則外の長母音重複（aa, ee, oo, ii, uu）を1文字に
-        paiboon = re.sub(r'(aa|ee|oo|ii|uu)', lambda m: m.group(0)[0], paiboon)
         # 代表的なIPA誤OCR補正
         ipa_map = {
             'nɯ̀ng': 'nʉ̀ng',
@@ -144,7 +142,7 @@ class BaseDeckBuilder:
         return paiboon
 
     def _correct_paiboon(self, data: List[Dict[str, str]]) -> List[Dict[str, str]]:
-        """タイ語をベースにしたPaiboon式ローマ字の修正（Function Calling+リトライ+事前正規化）"""
+        """タイ語をベースにしたPaiboon式ローマ字の修正（Function Calling+リトライ1回+詳細ログ+content None対応）"""
         if not data:
             print("⚠️ 修正対象のデータが空です")
             return []
@@ -164,21 +162,24 @@ class BaseDeckBuilder:
             }
         }
         for entry in data:
-            # paiboonがNoneまたは空の場合はjsonを表示してスキップ
+            print(f"\n---\n[処理開始] 入力データ: {json.dumps(entry, ensure_ascii=False)}")
             if not entry.get("paiboon"):
                 print(f"⚠️ paiboon=None or empty entry: {json.dumps(entry, ensure_ascii=False)}")
                 corrected_data.append(entry)
                 continue
-            # 事前正規化
+            print(f"[Paiboon正規化前] {entry['paiboon']}")
             norm_entry = dict(entry)
             norm_entry["paiboon"] = self.paiboon_normalize(norm_entry["paiboon"], norm_entry)
+            print(f"[Paiboon正規化後] {norm_entry['paiboon']}")
             single_entry = {
                 "thai": norm_entry["thai"],
                 "paiboon": norm_entry["paiboon"],
                 "meaning": norm_entry["meaning"]
             }
+            print(f"[ChatGPT補正前] {json.dumps(single_entry, ensure_ascii=False)}")
             retry = 0
-            while retry < 5:
+            max_retry = 1
+            while retry < max_retry:
                 try:
                     response = self.client.chat.completions.create(
                         model="gpt-4o",
@@ -187,37 +188,36 @@ class BaseDeckBuilder:
                             {"role": "user", "content": json.dumps(single_entry, ensure_ascii=False)}
                         ],
                         temperature=0,
-                        top_p=0,
+                        top_p=1,
                         max_tokens=128,
-                        tools=[{"type": "function", "function": function_schema}]
+                        tools=[{"type": "function", "function": function_schema}],
+                        tool_choice="auto"
                     )
-                    content = response.choices[0].message.content.strip()
-                    tool_calls = getattr(response.choices[0].message, "tool_calls", None)
-                    if tool_calls and hasattr(tool_calls[0], "function"):
-                        arguments = tool_calls[0].function.arguments
-                        if isinstance(arguments, str):
-                            result = json.loads(arguments)
-                        else:
-                            result = arguments
+                    msg = response.choices[0].message
+                    if getattr(msg, "tool_calls", None):
+                        args = msg.tool_calls[0].function.arguments
+                        result = json.loads(args) if isinstance(args, str) else args
                     else:
-                        json_match = re.search(r'\{[\s\S]*\}', content)
+                        if msg.content is None:
+                            raise ValueError("OpenAI応答のcontentがNoneです")
+                        json_match = re.search(r'\{[\s\S]*\}', msg.content)
                         if json_match:
                             result = json.loads(json_match.group(0))
                         else:
-                            raise ValueError("No JSON found in response")
+                            raise ValueError("No JSON found in response content")
                     if isinstance(result, dict) and all(k in result for k in ["thai", "paiboon", "meaning"]):
+                        print(f"[ChatGPT補正後] {json.dumps(result, ensure_ascii=False)}")
                         corrected_data.append(result)
                         break
                     else:
                         raise ValueError("Result missing required keys")
                 except Exception as e:
-                    print(f"⚠️ エラーが発生: {str(e)} (リトライ{retry+1}/1)")
-                    time.sleep(2 ** retry + random.uniform(0, 1))
+                    print(f"⚠️ エラーが発生: {str(e)} (リトライ{retry+1}/{max_retry})")
                     retry += 1
-                    if retry == 1:
+                    if retry == max_retry:
+                        print(f"⚠️ 最終エラー詳細: {str(e)} 入力: {json.dumps(single_entry, ensure_ascii=False)}")
                         corrected_data.append(entry)
                         break
-        # 戻り値の型を確認
         if not all(isinstance(item, dict) and all(k in item for k in ["thai", "paiboon", "meaning"]) for item in corrected_data):
             print("⚠️ 戻り値の型が不正です。元のデータを返します。")
             return data
