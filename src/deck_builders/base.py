@@ -117,16 +117,30 @@ class BaseDeckBuilder:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return temp_file
 
-    def paiboon_normalize(self, paiboon: str) -> str:
-        # 長母音重複を1つにまとめる
+    def paiboon_normalize(self, paiboon: str, entry: dict = None) -> str:
         import re
-        paiboon = re.sub(r'(\w)\1+', r'\1', paiboon)
+        # Paiboon規則外の長母音重複（aa, ee, oo, ii, uu）を1文字に
+        paiboon = re.sub(r'(aa|ee|oo|ii|uu)', lambda m: m.group(0)[0], paiboon)
+        # 代表的なIPA誤OCR補正
+        ipa_map = {
+            'nɯ̀ng': 'nʉ̀ng',
+            'sʉ̀ʉ': 'sʉʉ',
+            # 必要に応じて追加
+        }
+        for wrong, correct in ipa_map.items():
+            paiboon = paiboon.replace(wrong, correct)
         # 最終b→p
         paiboon = re.sub(r'b$', 'p', paiboon)
         # mâyは常に第3声
         paiboon = re.sub(r'mây', 'mây', paiboon)
         # dâi/dâyは意味で分けるが、曖昧ならdây
         paiboon = re.sub(r'dâi', 'dây', paiboon)
+        # 声調記号が一切ない場合の警告とデータ出力
+        if not re.search(r'[àáâǎèéêěìíîǐòóôǒɔ̀ɔ̂ɔ́ɔ̌ùúûǔʉ̀ʉ́ʉ̂ʉ̌ʉɛ́ɛɛ̀ɛ̌ɛ̂ə̀əə̂ə́ə̌]', paiboon):
+            print(f'⚠️ 声調記号なし: {paiboon}')
+            if entry is not None:
+                import json
+                print(f'  エントリ: {json.dumps(entry, ensure_ascii=False)}')
         return paiboon
 
     def _correct_paiboon(self, data: List[Dict[str, str]]) -> List[Dict[str, str]]:
@@ -150,9 +164,14 @@ class BaseDeckBuilder:
             }
         }
         for entry in data:
+            # paiboonがNoneまたは空の場合はjsonを表示してスキップ
+            if not entry.get("paiboon"):
+                print(f"⚠️ paiboon=None or empty entry: {json.dumps(entry, ensure_ascii=False)}")
+                corrected_data.append(entry)
+                continue
             # 事前正規化
             norm_entry = dict(entry)
-            norm_entry["paiboon"] = self.paiboon_normalize(norm_entry["paiboon"])
+            norm_entry["paiboon"] = self.paiboon_normalize(norm_entry["paiboon"], norm_entry)
             single_entry = {
                 "thai": norm_entry["thai"],
                 "paiboon": norm_entry["paiboon"],

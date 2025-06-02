@@ -25,7 +25,7 @@ def filter_unique_images(image_paths, threshold):
 def main():
     url = input("YouTubeのURLを入力してください: ").strip()
     threshold = input("重複判定のしきい値を入力してください（例: 0.92、デフォルト0.95）: ").strip()
-    threshold = float(threshold) if threshold else 0.95
+    threshold = float(threshold) if threshold else 0.99
 
     output_dir = pathlib.Path("data/output/frames_test")
     frames_dir = output_dir / "frames"

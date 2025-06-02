@@ -117,7 +117,7 @@ def filter_unique_images(image_paths, threshold=0.99):
             unique_paths.append(path)
     return unique_paths
 
-def process_youtube_video(url: str, deck_name: str, generate_media: bool = False, frame_interval: int = 5, ssim_threshold: float = 0.95) -> None:
+def process_youtube_video(url: str, deck_name: str, generate_media: bool = False, frame_interval: int = 5, ssim_threshold: float = 0.99) -> None:
     """YouTube動画を処理してAnkiデッキを生成する"""
     # 一時ディレクトリの作成
     temp_dir = pathlib.Path(tempfile.mkdtemp())
