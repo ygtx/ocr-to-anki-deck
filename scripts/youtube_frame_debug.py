@@ -6,7 +6,7 @@ import cv2
 import shutil
 from skimage.metrics import structural_similarity as ssim
 
-def is_similar_image(img1: np.ndarray, img2: np.ndarray, threshold: float = 0.95) -> bool:
+def is_similar_image(img1: np.ndarray, img2: np.ndarray, threshold: float = 0.99) -> bool:
     img1 = cv2.cvtColor(cv2.resize(img1, (200, 200)), cv2.COLOR_RGB2GRAY)
     img2 = cv2.cvtColor(cv2.resize(img2, (200, 200)), cv2.COLOR_RGB2GRAY)
     score, _ = ssim(img1, img2, full=True)
@@ -24,7 +24,7 @@ def filter_unique_images(image_paths, threshold):
 
 def main():
     url = input("YouTubeのURLを入力してください: ").strip()
-    threshold = input("重複判定のしきい値を入力してください（例: 0.92、デフォルト0.95）: ").strip()
+    threshold = input("重複判定のしきい値を入力してください（例: 0.92、デフォルト0.99）: ").strip()
     threshold = float(threshold) if threshold else 0.99
 
     output_dir = pathlib.Path("data/output/frames_test")

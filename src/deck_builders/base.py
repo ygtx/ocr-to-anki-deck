@@ -133,16 +133,10 @@ class BaseDeckBuilder:
         paiboon = re.sub(r'mây', 'mây', paiboon)
         # dâi/dâyは意味で分けるが、曖昧ならdây
         paiboon = re.sub(r'dâi', 'dây', paiboon)
-        # 声調記号が一切ない場合の警告とデータ出力
-        if not re.search(r'[àáâǎèéêěìíîǐòóôǒɔ̀ɔ̂ɔ́ɔ̌ùúûǔʉ̀ʉ́ʉ̂ʉ̌ʉɛ́ɛɛ̀ɛ̌ɛ̂ə̀əə̂ə́ə̌]', paiboon):
-            print(f'⚠️ 声調記号なし: {paiboon}')
-            if entry is not None:
-                import json
-                print(f'  エントリ: {json.dumps(entry, ensure_ascii=False)}')
         return paiboon
 
     def _correct_paiboon(self, data: List[Dict[str, str]]) -> List[Dict[str, str]]:
-        """タイ語をベースにしたPaiboon式ローマ字の修正（Function Calling+リトライ1回+詳細ログ+content None対応）"""
+        """タイ語をベースにしたPaiboon式ローマ字の修正（Function Calling+リトライ1回+詳細ログ+content None対応+タイ文字判定）"""
         if not data:
             print("⚠️ 修正対象のデータが空です")
             return []
@@ -163,6 +157,11 @@ class BaseDeckBuilder:
         }
         for entry in data:
             print(f"\n---\n[処理開始] 入力データ: {json.dumps(entry, ensure_ascii=False)}")
+            # Thaiフィールドにタイ文字が1文字も含まれない場合はスキップ
+            if not re.search(r'[\u0E00-\u0E7F]', entry.get("thai", "")):
+                print(f"⚠️ Thaiフィールドにタイ文字が含まれていないためスキップ: {json.dumps(entry, ensure_ascii=False)}")
+                corrected_data.append(entry)
+                continue
             if not entry.get("paiboon"):
                 print(f"⚠️ paiboon=None or empty entry: {json.dumps(entry, ensure_ascii=False)}")
                 corrected_data.append(entry)
@@ -240,25 +239,25 @@ class BaseDeckBuilder:
             1607392319,
             "Thai Vocab Model",
             fields=[
-                {"name": "thai"},
-                {"name": "paiboon"},
-                {"name": "meaning"},
-                {"name": "audio"},
+                {"name": "Thai"},
+                {"name": "Phonetic"},
+                {"name": "English"},
+                {"name": "Audio"},
             ],
             templates=[{
                 "name": "Card1",
-                "qfmt": "{{thai}}<br>{{paiboon}}",
-                "afmt": "{{FrontSide}}<hr>{{meaning}}<br>{{audio}}",
+                "qfmt": "{{Thai}}<br>{{Phonetic}}",
+                "afmt": "{{FrontSide}}<hr>{{English}}<br>{{Audio}}",
             }],
         )
         deck_id = abs(hash(self.deck_name)) % (2**31 - 1)
         deck = Deck(deck_id, self.deck_name)
         for note in notes:
             deck.add_note(Note(model, [
-                note["thai"],
-                note["paiboon"],
-                note["meaning"],
-                note["audio"],
+                note["Thai"],
+                note["Phonetic"],
+                note["English"],
+                note["Audio"],
             ]))
         # メディアファイルの絶対パスリスト
         media_paths = [str(p) for p in media_files if Path(p).exists()]
@@ -303,10 +302,10 @@ class BaseDeckBuilder:
                 media_files.append(tts_path)
                 # ノートを作成
                 notes.append({
-                    "thai": item["thai"],
-                    "paiboon": item["paiboon"],
-                    "meaning": english,
-                    "audio": f"[sound:{tts_path.name}]"
+                    "Thai": item["thai"],
+                    "Phonetic": item["paiboon"],
+                    "English": english,
+                    "Audio": f"[sound:{tts_path.name}]"
                 })
             except Exception as e:
                 print(f"⚠️ ノート生成中にエラーが発生: {str(e)}")

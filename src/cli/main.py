@@ -67,7 +67,7 @@ def main():
     
     # YouTube専用オプション
     parser.add_argument("--frame-interval", type=int, default=5, help="フレーム抽出間隔（秒）")
-    parser.add_argument("--ssim-threshold", type=float, default=0.95, help="SSIMによる重複排除のしきい値（0.90〜0.99推奨、デフォルト0.95）")
+    parser.add_argument("--ssim-threshold", type=float, default=0.99, help="SSIMによる重複排除のしきい値（0.90〜0.99推奨、デフォルト0.99）")
     parser.add_argument("--no-paiboon-correction", action="store_true", help="Paiboon最終修正（ChatGPT一括投げ）を行わない")
     
     args = parser.parse_args()

@@ -63,7 +63,7 @@ anki-ocr --youtube "https://www.youtube.com/watch?v=..." --deck-name "Thai Vocab
 | `--image` | 単一画像ファイルを指定（画像用） |
 | `--youtube` | YouTube動画URLを指定（動画用） |
 | `--frame-interval` | フレーム抽出間隔（秒、デフォルト5、動画用） |
-| `--ssim-threshold` | SSIMによる重複排除のしきい値（0.90〜0.99、デフォルト0.95、動画用） |
+| `--ssim-threshold` | SSIMによる重複排除のしきい値（0.90〜0.99、デフォルト0.99、動画用） |
 | `--no-paiboon-correction` | ChatGPTによるPaiboon最終修正をスキップ（デフォルトは修正あり） |
 | `--generate-media` | 音声ファイルも生成（画像用のみ） |
 

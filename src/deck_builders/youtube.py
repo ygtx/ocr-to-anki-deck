@@ -198,7 +198,7 @@ def process_youtube_video(url: str, deck_name: str, generate_media: bool = False
         print(f"\n🧹 一時ファイルを削除しました: {temp_dir}")
 
 class YouTubeDeckBuilder(BaseDeckBuilder):
-    def __init__(self, output_dir: str, deck_name: str, ssim_threshold: float = 0.95, use_paiboon_correction: bool = True):
+    def __init__(self, output_dir: str, deck_name: str, ssim_threshold: float = 0.99, use_paiboon_correction: bool = True):
         super().__init__(output_dir, deck_name, use_paiboon_correction=use_paiboon_correction)
         self.ssim_threshold = ssim_threshold
 
