@@ -7,6 +7,8 @@ from typing import List, Tuple
 import pathlib
 from dotenv import load_dotenv
 from .image import load_and_convert_image, preprocess_image_for_ocr
+import shutil
+import datetime
 
 # .envファイルを読み込む
 load_dotenv()
@@ -37,6 +39,14 @@ def extract_meaning_column(text: str) -> list:
             if value:
                 meanings.append(value)
     return meanings
+
+def save_invalid_frame(img_path, reason):
+    debug_dir = pathlib.Path("data/debug/invalid_frames")
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    out_path = debug_dir / f"{img_path.stem}__{reason}__{ts}{img_path.suffix}"
+    shutil.copy(img_path, out_path)
+    print(f"⚠️ 無効画像を保存: {out_path}")
 
 def ocr_and_process(img_path: pathlib.Path, media_dir: pathlib.Path) -> List[Tuple[str, str, str]]:
     """OpenAI o3モデルで画像からThai, Paiboon, Englishを抽出"""
@@ -86,8 +96,12 @@ def ocr_and_process(img_path: pathlib.Path, media_dir: pathlib.Path) -> List[Tup
                 english = row.get("english", "")
                 thai = row.get("thai", "")
                 paiboon = row.get("paiboon", "")
-                if not paiboon or paiboon in seen_paiboon:
+                if not paiboon:
+                    print(f"⚠️ paiboon=None or empty: {img_path}, row={row}")
+                    save_invalid_frame(img_path, "no_paiboon")
                     continue  # Paiboon重複排除
+                if paiboon in seen_paiboon:
+                    continue
                 seen_paiboon.add(paiboon)
                 results.append((english, thai, paiboon))
                 print(f"✅ 処理成功: {english} | {thai} | {paiboon}")
@@ -155,7 +169,11 @@ def ocr_and_process_youtube_frame(img_path: pathlib.Path, media_dir: pathlib.Pat
                 meaning = row.get("meaning", "")
                 thai = row.get("thai", "")
                 paiboon = row.get("paiboon", "")
-                if not paiboon or paiboon in seen_paiboon:
+                if not paiboon:
+                    print(f"⚠️ paiboon=None or empty: {img_path}, row={row}")
+                    save_invalid_frame(img_path, "no_paiboon")
+                    continue
+                if paiboon in seen_paiboon:
                     continue
                 seen_paiboon.add(paiboon)
                 results.append((meaning, thai, paiboon))

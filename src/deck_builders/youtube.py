@@ -20,6 +20,8 @@ import csv
 import base64
 import json
 import re
+import shutil
+import datetime
 
 def download_video(url: str, output_dir: pathlib.Path) -> pathlib.Path:
     """YouTube動画をダウンロードする"""
@@ -105,7 +107,7 @@ def is_similar_image(img1: np.ndarray, img2: np.ndarray, threshold: float = 0.95
     score, _ = ssim(img1, img2, full=True)
     return score > threshold
 
-def filter_unique_images(image_paths, threshold=0.95):
+def filter_unique_images(image_paths, threshold=0.99):
     unique = []
     unique_paths = []
     for path in image_paths:
@@ -291,6 +293,12 @@ class YouTubeDeckBuilder(BaseDeckBuilder):
                 return {}
             if not data:
                 print("❌ 空の配列が返されました")
+                debug_dir = pathlib.Path("data/debug/invalid_frames")
+                debug_dir.mkdir(parents=True, exist_ok=True)
+                ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                out_path = debug_dir / f"{frame_path.stem}__empty_result__{ts}{frame_path.suffix}"
+                shutil.copy(frame_path, out_path)
+                print(f"⚠️ 無効画像を保存: {out_path}")
                 return {}
             # 最初の要素を返す（複数ある場合は最初の1つだけ）
             item = data[0]
@@ -318,7 +326,13 @@ class YouTubeDeckBuilder(BaseDeckBuilder):
                 ocr_data.append(result)
         
         if not ocr_data:
-            print("❌ OCRで有効なデータを抽出できませんでした")
+            print("❌ 空の配列が返されました")
+            debug_dir = pathlib.Path("data/debug/invalid_frames")
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            out_path = debug_dir / f"{frame_path.stem}__empty_result__{ts}{frame_path.suffix}"
+            shutil.copy(frame_path, out_path)
+            print(f"⚠️ 無効画像を保存: {out_path}")
             return None
             
         # 親クラスのbuildメソッドを呼び出し（修正機能を含む）

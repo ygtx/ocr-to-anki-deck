@@ -9,6 +9,8 @@ from deep_translator import MyMemoryTranslator
 from genanki import Model, Note, Deck, Package
 import csv
 import re
+import time
+import random
 
 class BaseDeckBuilder:
     def __init__(self, output_dir: str, deck_name: str, use_paiboon_correction: bool = True):
@@ -115,69 +117,91 @@ class BaseDeckBuilder:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return temp_file
 
+    def paiboon_normalize(self, paiboon: str) -> str:
+        # 長母音重複を1つにまとめる
+        import re
+        paiboon = re.sub(r'(\w)\1+', r'\1', paiboon)
+        # 最終b→p
+        paiboon = re.sub(r'b$', 'p', paiboon)
+        # mâyは常に第3声
+        paiboon = re.sub(r'mây', 'mây', paiboon)
+        # dâi/dâyは意味で分けるが、曖昧ならdây
+        paiboon = re.sub(r'dâi', 'dây', paiboon)
+        return paiboon
+
     def _correct_paiboon(self, data: List[Dict[str, str]]) -> List[Dict[str, str]]:
-        """タイ語をベースにしたPaiboon式ローマ字の修正"""
+        """タイ語をベースにしたPaiboon式ローマ字の修正（Function Calling+リトライ+事前正規化）"""
         if not data:
             print("⚠️ 修正対象のデータが空です")
             return []
-            
         corrected_data = []
         rules = self.build_rules()
-
-        for entry in data:
-            single_entry = {
-                "thai": entry["thai"],
-                "paiboon": entry["paiboon"],
-                "meaning": entry["meaning"]
+        function_schema = {
+            "name": "fix_paiboon",
+            "description": "Paiboon 表記を修正して返す",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "thai": {"type": "string"},
+                    "paiboon": {"type": "string"},
+                    "meaning": {"type": "string"}
+                },
+                "required": ["thai", "paiboon", "meaning"]
             }
-
-            try:
-                response = self.client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": rules},
-                        {"role": "user", "content": json.dumps(single_entry, ensure_ascii=False)}
-                    ],
-                    temperature=0,
-                    max_tokens=256,
-                )
-                content = response.choices[0].message.content.strip()
-
-                # コードブロックを除去
-                json_match = re.search(r'```json\n(.*?)\n```', content, re.DOTALL)
-                if json_match:
-                    content = json_match.group(1)
-                else:
-                    # オブジェクトのパターンを探す
-                    json_match = re.search(r'\{[\s\S]*\}', content)
-                    if json_match:
-                        content = json_match.group(0)
-
-                # JSONとして取り出す
-                result = json.loads(content)
-                if isinstance(result, dict):
-                    # 必要なキーが存在することを確認
-                    if all(k in result for k in ["thai", "paiboon", "meaning"]):
-                        if "correction_reason" in result:
-                            print(f"🔍 修正理由: {result['correction_reason']}")
-                            del result["correction_reason"]
-                        corrected_data.append(result)
+        }
+        for entry in data:
+            # 事前正規化
+            norm_entry = dict(entry)
+            norm_entry["paiboon"] = self.paiboon_normalize(norm_entry["paiboon"])
+            single_entry = {
+                "thai": norm_entry["thai"],
+                "paiboon": norm_entry["paiboon"],
+                "meaning": norm_entry["meaning"]
+            }
+            retry = 0
+            while retry < 5:
+                try:
+                    response = self.client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": rules},
+                            {"role": "user", "content": json.dumps(single_entry, ensure_ascii=False)}
+                        ],
+                        temperature=0,
+                        top_p=0,
+                        max_tokens=128,
+                        tools=[{"type": "function", "function": function_schema}]
+                    )
+                    content = response.choices[0].message.content.strip()
+                    tool_calls = getattr(response.choices[0].message, "tool_calls", None)
+                    if tool_calls and hasattr(tool_calls[0], "function"):
+                        arguments = tool_calls[0].function.arguments
+                        if isinstance(arguments, str):
+                            result = json.loads(arguments)
+                        else:
+                            result = arguments
                     else:
-                        print("⚠️ 結果に必要なキーが不足しています。スキップ。")
+                        json_match = re.search(r'\{[\s\S]*\}', content)
+                        if json_match:
+                            result = json.loads(json_match.group(0))
+                        else:
+                            raise ValueError("No JSON found in response")
+                    if isinstance(result, dict) and all(k in result for k in ["thai", "paiboon", "meaning"]):
+                        corrected_data.append(result)
+                        break
+                    else:
+                        raise ValueError("Result missing required keys")
+                except Exception as e:
+                    print(f"⚠️ エラーが発生: {str(e)} (リトライ{retry+1}/1)")
+                    time.sleep(2 ** retry + random.uniform(0, 1))
+                    retry += 1
+                    if retry == 1:
                         corrected_data.append(entry)
-                else:
-                    print("⚠️ 結果がdictではありませんでした。スキップ。")
-                    corrected_data.append(entry)
-
-            except Exception as e:
-                print(f"⚠️ エラーが発生: {str(e)}")
-                corrected_data.append(entry)
-
+                        break
         # 戻り値の型を確認
         if not all(isinstance(item, dict) and all(k in item for k in ["thai", "paiboon", "meaning"]) for item in corrected_data):
             print("⚠️ 戻り値の型が不正です。元のデータを返します。")
             return data
-
         return corrected_data
 
     def _translate_to_english(self, text: str) -> str:

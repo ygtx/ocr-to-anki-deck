@@ -51,6 +51,7 @@ htmlcov/
 data/input/images/*
 data/input/youtube/*
 data/output/*
+data/debug/*
 *.apkg
 *.log
 *.db
