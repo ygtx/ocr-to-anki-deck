@@ -199,6 +199,47 @@ anki_ocr/
 h1, h2 { text-align: center }
 ```
 
+## Anki Deck 化実績
+
+どれも出力後相当の手直しが必要なので、外部提供化はしないことにした。
+プロンプトの工夫まではある程度やりきったので、これ以上の自動処理部分精度向上はシステム設計の見直しから必要
+
+```
+anki-ocr --youtube "https://www.youtube.com/watch?v=W7JgczIWFug" --deck-name "スキマ時間で覚えるタイ語の基礎単語【時間 】 W7JgczIWFug" --frame-interval 3  
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=0-zV_oQ1DkM" --deck-name "初心者向けタイ語フレーズ300選 0-zV_oQ1DkM" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=8LMhXIkKKAQ" --deck-name "短いタイ語リスニング【日常会話で使う短い フレーズ100】 8LMhXIkKKAQ" --frame-interval 3  
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=8UzNuYVUspY" --deck-name "スキマ時間で覚えるタイ語の基礎単語【日・ 週・月・年】 8UzNuYVUspY" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=Su8c-mUmVYI" --deck-name "スキマ時間で覚えるタイ語の基礎単語【曜日・月・季節】】 Su8c-mUmVYI" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=wyTC-wqEsDQ" --deck-name "【超重要】タイ語の疑問詞5W1H例文100文！ wyTC-wqEsDQ" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=IOgvwhs2phU" --deck-name "レストランで使えるタイ語フレーズ100（予約・入店・注文・会計） IOgvwhs2phU" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=bXtPwsZJZ6M" --deck-name "【タイ語でショッピング】タイ語の買い物フレーズ１００ bXtPwsZJZ6M" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=IbUn-UxsbCw" --deck-name "【タイ語で愛を伝える】タイ語の恋愛フレーズ集 IbUn-UxsbCw" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=xt2OvvJZu2I" --deck-name "場所に関するタイ語単語200 xt2OvvJZu2I" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=6Hx1kwRpzM8" --deck-name "スキマ時間で覚えるタイ語の基礎単語【人・家族】 6Hx1kwRpzM8" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=lH6pMoQugeY" --deck-name "交通機関で使える使えるタイ語フレーズ100 lH6pMoQugeY" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=vOV6I4ZGki0" --deck-name "朝起きてから夜寝るまでのタイ語表現200 vOV6I4ZGki0" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=_F8NTqNzKHw" --deck-name "スキマ時間で覚えるタイ語の基礎単語【身体】 _F8NTqNzKHw" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=Kc8127CPc9I" --deck-name "初心者から中級者まで学べるタイ語の日常会話フレーズ１００ Kc8127CPc9I" --frame-interval 3
+
+anki-ocr --youtube "https://www.youtube.com/watch?v=e8pyMe_xMPY" --deck-name "よくする行動をタイ語で表現200 e8pyMe_xMPY" --frame-interval 3
+```
+
+
+
 ## ライセンス
 
 MIT License
