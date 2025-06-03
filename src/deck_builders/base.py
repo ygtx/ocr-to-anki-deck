@@ -223,9 +223,26 @@ class BaseDeckBuilder:
         return corrected_data
 
     def _translate_to_english(self, text: str) -> str:
-        """日本語から英語に翻訳"""
+        """日本語から英語に翻訳（レートリミット時は10秒待って1回リトライ）"""
         translator = MyMemoryTranslator(source="ja-JP", target="en-GB")
-        return translator.translate(text)
+        try:
+            result = translator.translate(text)
+            time.sleep(0.5)  # Google翻訳APIのレートリミット回避
+            return result
+        except Exception as e:
+            msg = str(e)
+            if "too many requests" in msg.lower() or "you made too many requests" in msg.lower():
+                print("⚠️ Google翻訳APIのレートリミットに達しました。10秒待機してリトライします。")
+                time.sleep(10)
+                try:
+                    result = translator.translate(text)
+                    time.sleep(0.5)
+                    return result
+                except Exception as e2:
+                    print(f"❌ 再試行でも失敗: {e2}")
+                    raise
+            else:
+                raise
 
     def _generate_tts(self, text: str, output_path: Path) -> None:
         """タイ語のTTS音声を生成"""
@@ -244,11 +261,19 @@ class BaseDeckBuilder:
                 {"name": "English"},
                 {"name": "Audio"},
             ],
-            templates=[{
-                "name": "Card1",
-                "qfmt": "{{Thai}}<br>{{Phonetic}}",
-                "afmt": "{{FrontSide}}<hr>{{English}}<br>{{Audio}}",
-            }],
+            templates=[
+                {
+                    "name": "Card1",
+                    "qfmt": "<h1>{{Phonetic}}</h1>\n<h2>{{Thai}}</h2>\n<hr>\n<h1>{{Audio}}</h1>",
+                    "afmt": "<h1>{{Phonetic}}</h1>\n<h2>{{English}}</h2>\n<h2>{{Thai}}</h2>\n<hr>\n<h1>{{Audio}}</h1>",
+                },
+                {
+                    "name": "Card2",
+                    "qfmt": "<h1>{{English}}</h1>",
+                    "afmt": "<h1>{{English}}</h1>\n<h2>{{Phonetic}}</h2>\n<h2>{{Thai}}</h2>\n<hr>\n<h1>{{Audio}}</h1>",
+                },
+            ],
+            css="""h1, h2 { text-align: center; }"""
         )
         deck_id = abs(hash(self.deck_name)) % (2**31 - 1)
         deck = Deck(deck_id, self.deck_name)
@@ -283,6 +308,8 @@ class BaseDeckBuilder:
             print("❌ 有効なデータがありません")
             return None
 
+        print(f"\n📝 デッキ生成対象件数: {len(valid_data)} 件")
+
         # OCRデータを修正
         if self.use_paiboon_correction:
             corrected_data = self._correct_paiboon(valid_data)
@@ -292,8 +319,10 @@ class BaseDeckBuilder:
         # 翻訳とTTS生成
         notes = []
         media_files = []
-        for item in corrected_data:
+        total = len(corrected_data)
+        for idx, item in enumerate(corrected_data, 1):
             try:
+                print(f"[進捗] {idx}/{total} ({(idx/total)*100:.1f}%) - thai: {item['thai']}")
                 # 英語に翻訳
                 english = self._translate_to_english(item["meaning"])
                 # TTS音声を生成

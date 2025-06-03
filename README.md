@@ -179,19 +179,19 @@ anki_ocr/
 
 ### Front
 ```html
-<h1>{{paiboon}}</h1>
-<h2>{{thai}}</h2>
+<h1>{{Phonetic}}</h1>
+<h2>{{Thai}}</h2>
 <hr>
-<h1>{{audio}}</h1>
+<h1>{{Audio}}</h1>
 ```
 
 ### Back
 ```html
-<h1>{{paiboon}}</h1>
-<h2>{{meaning}}</h2>
-<h2>{{thai}}</h2>
+<h1>{{Phonetic}}</h1>
+<h2>{{English}}</h2>
+<h2>{{Thai}}</h2>
 <hr>
-<h1>{{audio}}</h1>
+<h1>{{Audio}}</h1>
 ```
 
 ### Styling

@@ -96,6 +96,13 @@ def ocr_and_process(img_path: pathlib.Path, media_dir: pathlib.Path) -> List[Tup
                 english = row.get("english", "")
                 thai = row.get("thai", "")
                 paiboon = row.get("paiboon", "")
+                # Thaiに日本語が含まれる場合・'-training.com'が含まれる場合はスキップ
+                if re.search(r'[\u3040-\u30FF\u4E00-\u9FFF]', thai):
+                    print(f"⚠️ Thaiに日本語が含まれるためスキップ: {thai}")
+                    continue
+                if re.search(r'-training\.com', thai):
+                    print(f"⚠️ Thaiに'-training.com'が含まれるためスキップ: {thai}")
+                    continue
                 if not paiboon:
                     print(f"⚠️ paiboon=None or empty: {img_path}, row={row}")
                     save_invalid_frame(img_path, "no_paiboon")
@@ -169,6 +176,13 @@ def ocr_and_process_youtube_frame(img_path: pathlib.Path, media_dir: pathlib.Pat
                 meaning = row.get("meaning", "")
                 thai = row.get("thai", "")
                 paiboon = row.get("paiboon", "")
+                # Thaiに日本語が含まれる場合・'-training.com'が含まれる場合はスキップ
+                if re.search(r'[\u3040-\u30FF\u4E00-\u9FFF]', thai):
+                    print(f"⚠️ Thaiに日本語が含まれるためスキップ: {thai}")
+                    continue
+                if re.search(r'-training\.com', thai):
+                    print(f"⚠️ Thaiに'-training.com'が含まれるためスキップ: {thai}")
+                    continue
                 if not paiboon:
                     print(f"⚠️ paiboon=None or empty: {img_path}, row={row}")
                     save_invalid_frame(img_path, "no_paiboon")
